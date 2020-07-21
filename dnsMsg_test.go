@@ -40,7 +40,8 @@ func TestDNSMsg_DNS2JSON(t *testing.T) {
 
 	dnsMsg := &DNSMsg{msg}
 
-	jsonByte, _ := dnsMsg.DNS2JSON()
+	respJSON, _ := dnsMsg.DNS2JSON()
+	jsonByte, _ := json.Marshal(respJSON)
 	log.Println(string(jsonByte))
 
 }
@@ -75,7 +76,8 @@ func TestDNSMsg_JSON2DNS(t *testing.T) {
 
 	dnsMsg := &DNSMsg{msg}
 
-	jsonByte, _ := dnsMsg.DNS2JSON()
+	respJSON, _ := dnsMsg.DNS2JSON()
+	jsonByte, _ := json.Marshal(respJSON)
 	log.Println(string(jsonByte))
 	// -------------------------------
 	jsonMsg := &jsondns.JSONMsg{}

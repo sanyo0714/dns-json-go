@@ -6,8 +6,9 @@ DNS JSON parser
 ```
 msg := new(dns.Msg)
 ...
-dnsMsg := &DNSMsg{msg}
-jsonByte, _ := dnsMsg.DNS2JSON()
+dnsMsg := &dnsjson.DNSMsg{msg}
+respJSON, err := dnsMsg.DNS2JSON()
+respStr, err := json.Marshal(respJSON)
 log.Println(string(jsonByte))
 ```
 
