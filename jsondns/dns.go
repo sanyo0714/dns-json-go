@@ -63,26 +63,16 @@ func (jsonRR *JSONRR) MarshalRR(rr dns.RR) {
 // UnmarshalRR is unmarshal  dns RR
 func (jsonRR *JSONRR) UnmarshalRR() (dnsRR dns.RR, err error) {
 	if strings.ContainsAny(jsonRR.Name, "\t\r\n \"();\\") {
-		return nil, UnmarshalError{fmt.Sprintf("Record name contains space: %q", jsonRR.Name)}
+		return nil, fmt.Errorf("Record name contains space: %q", jsonRR.Name)
 	}
 	rrType, ok := dns.TypeToString[jsonRR.Type]
 	if !ok {
-		return nil, UnmarshalError{fmt.Sprintf("Unknown record type: %d", jsonRR.Type)}
+		return nil, fmt.Errorf("Unknown record type: %d", jsonRR.Type)
 	}
 	if strings.ContainsAny(jsonRR.Data, "\r\n") {
-		return nil, UnmarshalError{fmt.Sprintf("Record data contains newline: %q", jsonRR.Data)}
+		return nil, fmt.Errorf("Record data contains newline: %q", jsonRR.Data)
 	}
 	zone := fmt.Sprintf("%s %d IN %s %s", jsonRR.Name, jsonRR.TTL, rrType, jsonRR.Data)
 	dnsRR, err = dns.NewRR(zone)
 	return
-}
-
-// UnmarshalError is unmarshal error message
-type UnmarshalError struct {
-	err string
-}
-
-// Error is ...
-func (e UnmarshalError) Error() string {
-	return "json-dns: " + e.err
 }

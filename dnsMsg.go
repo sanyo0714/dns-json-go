@@ -2,6 +2,7 @@ package dnsjson
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/miekg/dns"
 	"github.com/sanyo0714/dns-json-go/jsondns"
 	"log"
@@ -12,7 +13,7 @@ import (
 
 // DNSMsg is contains dns.Msg
 type DNSMsg struct {
-	dns.Msg
+	*dns.Msg
 }
 
 // DNS2JSON is a function dns message to json
@@ -123,12 +124,12 @@ func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClient
 	if ednsClientSubnet != "" {
 		slash := strings.IndexByte(ednsClientSubnet, '/')
 		if slash < 0 {
-			err = jsondns.UnmarshalError{"Invalid client subnet"}
+			err = errors.New("Invalid client subnet")
 			return
 		}
 		ednsClientAddress = net.ParseIP(ednsClientSubnet[:slash])
 		if ednsClientAddress == nil {
-			err = jsondns.UnmarshalError{"Invalid client subnet address"}
+			err = errors.New("Invalid client subnet address")
 			return
 		}
 		if ipv4 := ednsClientAddress.To4(); ipv4 != nil {
@@ -136,9 +137,9 @@ func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClient
 		} else {
 			ednsClientFamily = 2
 		}
-		scope, err := strconv.ParseUint(ednsClientSubnet[slash+1:], 10, 8)
-		if err != nil {
-			err = jsondns.UnmarshalError{"Invalid client subnet address"}
+		scope, parseErr := strconv.ParseUint(ednsClientSubnet[slash+1:], 10, 8)
+		if parseErr != nil {
+			err = errors.New("Invalid client subnet address")
 			return
 		}
 		ednsClientScope = uint8(scope)
