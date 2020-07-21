@@ -1,7 +1,6 @@
 package dnsjson
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/miekg/dns"
 	"github.com/sanyo0714/dns-json-go/jsondns"
@@ -18,7 +17,7 @@ type DNSMsg struct {
 }
 
 // DNS2JSON is a function dns message to json
-func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
+func (msg *DNSMsg) DNS2JSON() (*jsondns.JSONMsg, error) {
 
 	now := time.Now().UTC()
 
@@ -93,7 +92,7 @@ func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
 		resp.Additional = append(resp.Additional, *jsonAdditional)
 	}
 
-	return json.Marshal(resp)
+	return resp, nil
 }
 
 // JSON2DNS is a function json to dns message
