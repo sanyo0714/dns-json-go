@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // DNSMsg is contains dns.Msg
@@ -18,6 +19,8 @@ type DNSMsg struct {
 
 // DNS2JSON is a function dns message to json
 func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
+
+	now := time.Now().UTC()
 
 	resp := new(jsondns.JSONMsg)
 	resp.Status = uint32(msg.Rcode)
@@ -39,21 +42,31 @@ func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
 	resp.Answer = make([]jsondns.JSONRR, 0, len(msg.Answer))
 	for _, rr := range msg.Answer {
 		jsonAnswer := &jsondns.JSONRR{}
-		jsonAnswer.MarshalRR(rr)
+		jsonAnswer.MarshalRR(rr, now)
+		if !resp.HaveTTL || jsonAnswer.TTL < resp.LeastTTL {
+			resp.HaveTTL = true
+			resp.LeastTTL = jsonAnswer.TTL
+			resp.EarliestExpires = jsonAnswer.Expires
+		}
 		resp.Answer = append(resp.Answer, *jsonAnswer)
 	}
 
 	resp.Authority = make([]jsondns.JSONRR, 0, len(msg.Ns))
 	for _, rr := range msg.Ns {
 		jsonAuthority := &jsondns.JSONRR{}
-		jsonAuthority.MarshalRR(rr)
+		jsonAuthority.MarshalRR(rr, now)
+		if !resp.HaveTTL || jsonAuthority.TTL < resp.LeastTTL {
+			resp.HaveTTL = true
+			resp.LeastTTL = jsonAuthority.TTL
+			resp.EarliestExpires = jsonAuthority.Expires
+		}
 		resp.Authority = append(resp.Authority, *jsonAuthority)
 	}
 
 	resp.Additional = make([]jsondns.JSONRR, 0, len(msg.Extra))
 	for _, rr := range msg.Extra {
 		jsonAdditional := &jsondns.JSONRR{}
-		jsonAdditional.MarshalRR(rr)
+		jsonAdditional.MarshalRR(rr, now)
 		header := rr.Header()
 		if header.Rrtype == dns.TypeOPT {
 			opt := rr.(*dns.OPT)
@@ -72,6 +85,11 @@ func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
 			}
 			continue
 		}
+		if !resp.HaveTTL || jsonAdditional.TTL < resp.LeastTTL {
+			resp.HaveTTL = true
+			resp.LeastTTL = jsonAdditional.TTL
+			resp.EarliestExpires = jsonAdditional.Expires
+		}
 		resp.Additional = append(resp.Additional, *jsonAdditional)
 	}
 
@@ -81,6 +99,8 @@ func (msg *DNSMsg) DNS2JSON() ([]byte, error) {
 // JSON2DNS is a function json to dns message
 func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClientNetmask uint8) (reply *dns.Msg, err error) {
 
+	now := time.Now().UTC()
+
 	reply = msg.Copy()
 	reply.Truncated = jsonMsg.TC
 	reply.AuthenticatedData = jsonMsg.AD
@@ -89,7 +109,7 @@ func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClient
 
 	reply.Answer = make([]dns.RR, 0, len(jsonMsg.Answer))
 	for _, rr := range jsonMsg.Answer {
-		dnsRR, err := rr.UnmarshalRR()
+		dnsRR, err := rr.UnmarshalRR(now)
 		if err != nil {
 			log.Println(err)
 		} else {
@@ -99,7 +119,7 @@ func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClient
 
 	reply.Ns = make([]dns.RR, 0, len(jsonMsg.Authority))
 	for _, rr := range jsonMsg.Authority {
-		dnsRR, err := rr.UnmarshalRR()
+		dnsRR, err := rr.UnmarshalRR(now)
 		if err != nil {
 			log.Println(err)
 		} else {
@@ -163,7 +183,7 @@ func (msg *DNSMsg) JSON2DNS(jsonMsg *jsondns.JSONMsg, udpSize uint16, ednsClient
 	}
 	reply.Extra = append(reply.Extra, opt)
 	for _, rr := range jsonMsg.Additional {
-		dnsRR, err := rr.UnmarshalRR()
+		dnsRR, err := rr.UnmarshalRR(now)
 		if err != nil {
 			log.Println(err)
 		} else {

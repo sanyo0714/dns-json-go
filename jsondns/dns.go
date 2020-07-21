@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/miekg/dns"
 	"strings"
+	"time"
 )
 
 // JSONMsg is dns json struct
@@ -19,13 +20,16 @@ type JSONMsg struct {
 	// Whether all response data was validated with DNSSEC
 	AD bool `json:"AD"`
 	// 	// Whether the client asked to disable DNSSEC
-	CD         bool       `json:"CD"`
-	Question   []Question `json:"Question"`
-	Answer     []JSONRR   `json:"Answer,omitempty"`
-	Authority  []JSONRR   `json:"Authority,omitempty"`
-	Additional []JSONRR   `json:"Additional,omitempty"`
-	ECS        string     `json:"edns_client_subnet,omitempty"`
-	Comment    string     `json:"Comment,omitempty"`
+	CD              bool       `json:"CD"`
+	Question        []Question `json:"Question"`
+	Answer          []JSONRR   `json:"Answer,omitempty"`
+	Authority       []JSONRR   `json:"Authority,omitempty"`
+	Additional      []JSONRR   `json:"Additional,omitempty"`
+	ECS             string     `json:"edns_client_subnet,omitempty"`
+	Comment         string     `json:"Comment,omitempty"`
+	HaveTTL         bool       `json:"-"`
+	LeastTTL        uint32     `json:"-"`
+	EarliestExpires time.Time  `json:"-"`
 }
 
 // Question is dns question json struct
@@ -45,15 +49,19 @@ type JSONRR struct {
 	// Record's time-to-live in seconds
 	TTL uint32 `json:"TTL"`
 	// Data for A - IP address as text
-	Data string `json:"data"`
+	Data       string    `json:"data"`
+	Expires    time.Time `json:"-"`
+	ExpiresStr string    `json:"-"`
 }
 
 // MarshalRR is marshal dns RR
-func (jsonRR *JSONRR) MarshalRR(rr dns.RR) {
+func (jsonRR *JSONRR) MarshalRR(rr dns.RR, now time.Time) {
 	rrHeader := rr.Header()
 	jsonRR.Name = rrHeader.Name
 	jsonRR.Type = rrHeader.Rrtype
 	jsonRR.TTL = rrHeader.Ttl
+	jsonRR.Expires = now.Add(time.Duration(jsonRR.TTL) * time.Second)
+	jsonRR.ExpiresStr = jsonRR.Expires.Format(time.RFC1123)
 	data := strings.SplitN(rr.String(), "\t", 5)
 	if len(data) >= 5 {
 		jsonRR.Data = data[4]
@@ -61,9 +69,19 @@ func (jsonRR *JSONRR) MarshalRR(rr dns.RR) {
 }
 
 // UnmarshalRR is unmarshal  dns RR
-func (jsonRR *JSONRR) UnmarshalRR() (dnsRR dns.RR, err error) {
+func (jsonRR *JSONRR) UnmarshalRR(now time.Time) (dnsRR dns.RR, err error) {
 	if strings.ContainsAny(jsonRR.Name, "\t\r\n \"();\\") {
 		return nil, fmt.Errorf("Record name contains space: %q", jsonRR.Name)
+	}
+	if jsonRR.ExpiresStr != "" {
+		jsonRR.Expires, err = time.Parse(time.RFC1123, jsonRR.ExpiresStr)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid expire time: %q", jsonRR.ExpiresStr)
+		}
+		ttl := jsonRR.Expires.Sub(now) / time.Second
+		if ttl >= 0 && ttl <= 0xffffffff {
+			jsonRR.TTL = uint32(ttl)
+		}
 	}
 	rrType, ok := dns.TypeToString[jsonRR.Type]
 	if !ok {
@@ -74,5 +92,6 @@ func (jsonRR *JSONRR) UnmarshalRR() (dnsRR dns.RR, err error) {
 	}
 	zone := fmt.Sprintf("%s %d IN %s %s", jsonRR.Name, jsonRR.TTL, rrType, jsonRR.Data)
 	dnsRR, err = dns.NewRR(zone)
+
 	return
 }
