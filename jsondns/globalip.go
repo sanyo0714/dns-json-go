@@ -1,0 +1,76 @@
+package jsondns
+
+import (
+	"github.com/infobloxopen/go-trees/iptree"
+	"net"
+)
+
+var ipTrie *ipTrieTree
+
+type ipTrieTree struct {
+	IPtree  *iptree.Tree
+	IPCount int
+}
+
+func (ipTrie *ipTrieTree) insertNet(ip net.IP, mask net.IPMask) {
+	ipTrie.IPtree.InplaceInsertNet(&net.IPNet{ip, mask}, struct{}{})
+	ipTrie.IPCount++
+}
+
+func init() {
+	ipTrie = &ipTrieTree{IPtree: iptree.NewTree()}
+
+	// RFC6890
+	// This host on this network
+	ipTrie.insertNet(net.IP{0, 0, 0, 0}, net.IPMask{255, 0, 0, 0})
+
+	// Private-Use Networks
+	ipTrie.insertNet(net.IP{10, 0, 0, 0}, net.IPMask{255, 0, 0, 0})
+
+	// Shared Address Space
+	ipTrie.insertNet(net.IP{100, 64, 0, 0}, net.IPMask{255, 192, 0, 0})
+
+	// Loopback
+	ipTrie.insertNet(net.IP{127, 0, 0, 0}, net.IPMask{255, 0, 0, 0})
+
+	// Link Local
+	ipTrie.insertNet(net.IP{169, 254, 0, 0}, net.IPMask{255, 255, 0, 0})
+
+	// Private-Use Networks
+	ipTrie.insertNet(net.IP{172, 16, 0, 0}, net.IPMask{255, 240, 0, 0})
+
+	// DS-Lite
+	ipTrie.insertNet(net.IP{192, 0, 0, 0}, net.IPMask{255, 255, 255, 248})
+
+	// 6to4 Relay Anycast
+	ipTrie.insertNet(net.IP{192, 88, 99, 0}, net.IPMask{255, 255, 255, 0})
+
+	// Private-Use Networks
+	ipTrie.insertNet(net.IP{192, 168, 0, 0}, net.IPMask{255, 255, 0, 0})
+
+	// Reserved for Future Use & Limited Broadcast
+	ipTrie.insertNet(net.IP{240, 0, 0, 0}, net.IPMask{240, 0, 0, 0})
+
+	// RFC6890
+	// Unspecified & Loopback Address
+	ipTrie.insertNet(net.IP{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, net.IPMask{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe})
+
+	// Discard-Only Prefix
+	ipTrie.insertNet(net.IP{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, net.IPMask{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+
+	// Unique-Local
+	ipTrie.insertNet(net.IP{0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, net.IPMask{0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+
+	// Linked-Scoped Unicast
+	ipTrie.insertNet(net.IP{0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, net.IPMask{0xff, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+
+}
+
+// IsGlobalIP is Determine if it is a global domain name
+func IsGlobalIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	_, contained := ipTrie.IPtree.GetByIP(ip)
+	return !contained
+}
