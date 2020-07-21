@@ -13,13 +13,14 @@ type dnsError struct {
 	Comment string `json:"Comment,omitempty"`
 }
 
+// FormatError is http response
 func FormatError(w http.ResponseWriter, comment string, errcode int) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	errJson := dnsError{
+	errJSON := dnsError{
 		Status:  dns.RcodeServerFailure,
 		Comment: comment,
 	}
-	errStr, err := json.Marshal(errJson)
+	errStr, err := json.Marshal(errJSON)
 	if err != nil {
 		log.Fatalln(err)
 	}
